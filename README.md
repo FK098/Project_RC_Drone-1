@@ -10,70 +10,70 @@
 
 ## Stato del progetto
 
-Il progetto e in sviluppo. Il firmware e stato strutturato e controllato staticamente, ma non e stato ancora validato in volo. Ogni prova iniziale deve essere eseguita senza eliche e con il drone fissato.
+Il progetto è in sviluppo. Il firmware è stato strutturato e controllato staticamente, ma non è stato ancora validato in volo. Ogni prova iniziale deve essere eseguita senza eliche e con il drone fissato.
 
 Documentazione dettagliata: [wiki locale](docs/wiki/README.md).
 
 ## Obiettivo tecnico
 
-Il repository documenta il firmware del drone: lettura dei registri dei sensori, filtro complementare, controllo PID cascato e mixer dei quattro motori. Le librerie `Mio*` sono scritte per questo progetto; RF24 e una libreria esterna inclusa nel repository.
+Il repository documenta il firmware del drone: lettura dei registri dei sensori, filtro complementare, controllo PID in cascata e mixer dei quattro motori. Le librerie `Mio*` sono scritte per questo progetto; RF24 è una libreria esterna inclusa nel repository.
 
 - **GitHub:** [@FK098](https://github.com/FK098)
 
 ---
 
-## 📌 Project Overview
+## 📌 Panoramica del Progetto
 
-Most commercial flight controllers rely on high-level libraries or pre-compiled firmware (Betaflight, ArduPilot, etc.). This project takes the opposite approach: **every driver, filter, and control algorithm is written from the component datasheets**, with a strict focus on the severe constraints of the ATmega328P:
+La maggior parte dei flight controller commerciali si affida a librerie ad alto livello o firmware precompilati (Betaflight, ArduPilot, ecc.). Questo progetto adotta l'approccio opposto: **ogni driver, filtro e algoritmo di controllo è scritto a partire dai datasheet dei componenti**, con una rigorosa attenzione alle severe limitazioni dell'ATmega328P:
 
-- ⚡ **2 KB SRAM** — every byte counts
-- ⏱️ **16 MHz clock** — deterministic timing is mandatory
-- 📉 **8-bit architecture** — no floating-point luxury (but we use it where unavoidable)
+- ⚡ **2 KB SRAM** — ogni byte conta
+- ⏱️ **16 MHz clock** — un timing deterministico è obbligatorio
+- 📉 **Architettura a 8-bit** — nessun lusso per la virgola mobile (ma la usiamo dove inevitabile)
 
-### ✨ Key Features
+### ✨ Funzionalità Chiave
 
-- **Deterministic Flight Loop @ 250 Hz:** Fixed-cycle 4 ms scheduling ensures stable convergence of cascaded PID loops (Roll, Pitch, Yaw rate).
-- **Custom Sensor Libraries (`Mio*`):** Bare-metal I2C drivers written from datasheets for the MPU-6050, BMP280, and QMC5883L, with register-level control, DLPF filtering, and factory calibration parsing.
+- **Loop di Volo Deterministico a 250 Hz:** Lo scheduling a ciclo fisso di 4 ms garantisce una convergenza stabile dei loop PID in cascata (rate di Roll, Pitch, Yaw).
+- **Librerie Sensori Custom (`Mio*`):** Driver I2C bare-metal scritti a partire dai datasheet per MPU-6050, BMP280 e QMC5883L, con controllo a livello di registri, filtraggio DLPF e parsing della calibrazione di fabbrica.
 - **Sensor Fusion:** Filtro complementare attivo per roll/pitch; heading tilt-compensato con QMC5883L disponibile nella libreria ma non ancora integrato nel loop di volo.
-- **Cascaded PID Architecture:** Outer angle loop → inner rate loop → motor mixer, with integral windup protection and derivative-on-measurement to avoid setpoint kicks.
-- **2.4 GHz Radio Link (`nRF24L01+`):** Collegamento radio unidirezionale controller -> flight controller con payload binario fisso e timeout failsafe.
-- **ESC & Motor Management:** Segnale da 1000 a 2000 µs e disarmo iniziale; l'armamento viene richiesto dal controller e controllato dal flight controller.
+- **Architettura PID in Cascata:** Loop esterno per l'angolo → loop interno per il rate → motor mixer, con protezione anti-windup integrale e calcolo della derivata sulla misurazione per evitare sbalzi improvvisi (setpoint kick).
+- **Collegamento Radio a 2.4 GHz (`nRF24L01+`):** Collegamento radio unidirezionale controller -> flight controller con payload binario fisso e timeout failsafe.
+- **Gestione Motori & ESC:** Segnale da 1000 a 2000 µs e disarmo iniziale; l'armamento viene richiesto dal controller e gestito dal flight controller.
 - **Sensori opzionali:** BMP280 e QMC5883L vengono inizializzati, ma non sono ancora usati nel loop PID a 250 Hz.
 
-------
+---
 
-## 📐 Pinout & Wiring Diagram
+## 📐 Pinout e Schema di Collegamento
 
-### I2C Bus (Sensors)
-All I2C devices share the same bus. The MPU-6050 and BMP280 are standard, while the QMC5883L is mounted as far away from the high-current ESC wires as possible to avoid magnetic interference.
+### Bus I2C (Sensori)
+Tutti i dispositivi I2C condividono lo stesso bus. L'MPU-6050 e il BMP280 sono standard, mentre il QMC5883L è montato il più lontano possibile dai cavi ad alta corrente degli ESC per evitare interferenze magnetiche.
 
-| Sensor Pin | Arduino Nano Pin | Notes |
+| Pin Sensore | Pin Arduino Nano | Note |
 | :--- | :--- | :--- |
-| **SDA** | A4 | I2C Data Line |
-| **SCL** | A5 | I2C Clock Line (400 kHz Fast Mode) |
+| **SDA** | A4 | Linea Dati I2C |
+| **SCL** | A5 | Linea Clock I2C (Modalità Fast a 400 kHz) |
 
-### SPI Bus (nRF24L01 Radio)
-> ⚠️ **Note:** Powered strictly via the AMS1117 3.3V step-down regulator. A 100µF bypass capacitor is soldered directly to the radio's VCC/GND pins to prevent voltage drops during transmission spikes.
+### Bus SPI (Radio nRF24L01)
+> ⚠️ **Nota:** Alimentato rigorosamente tramite il regolatore step-down AMS1117 a 3.3V. Un condensatore di bypass da 100µF è saldato direttamente sui pin VCC/GND della radio per prevenire cali di tensione durante i picchi di trasmissione.
 
-| nRF24L01 Pin | Arduino Nano Pin | Description |
+| Pin nRF24L01 | Pin Arduino Nano | Descrizione |
 | :--- | :--- | :--- |
-| **CE** | D7 | RX/TX activation |
-| **CSN** | D8 | SPI Chip Select |
-| **SCK** | D13 | Serial Clock |
+| **CE** | D7 | Attivazione RX/TX |
+| **CSN** | D8 | Selezione Chip SPI (Chip Select) |
+| **SCK** | D13 | Clock Seriale |
 | **MOSI** | D11 | Master Out Slave In |
 | **MISO** | D12 | Master In Slave Out |
 
-### Motor Outputs (PWM)
-| ESC Channel | Arduino Nano Pin | Quadcopter Position (X Config) |
+### Output Motori (PWM)
+| Canale ESC | Pin Arduino Nano | Posizione sul Quadricottero (Configurazione a X) |
 | :--- | :--- | :--- |
-| **Motor 1** | D3 | Front Right (CCW) |
-| **Motor 2** | D5 | Rear Right (CW) |
-| **Motor 3** | D6 | Rear Left (CCW) |
-| **Motor 4** | D9 | Front Left (CW) |
+| **Motore 1** | D3 | Anteriore Destro (CCW - Antiorario) |
+| **Motore 2** | D5 | Posteriore Destro (CW - Orario) |
+| **Motore 3** | D6 | Posteriore Sinistro (CCW - Antiorario) |
+| **Motore 4** | D9 | Anteriore Sinistro (CW - Orario) |
 
-### Ground controller (Arduino Uno)
+### Controller di Terra (Arduino Uno)
 
-Il file [sketch_controller.ino](sketches/sketch_controller.ino) legge due joystick analogici e trasmette il payload al Nano. Il firmware del Nano e [sketch1_FlightController.ino](sketches/sketch1_FlightController.ino).
+Il file [sketch_controller.ino](sketches/sketch_controller.ino) legge due joystick analogici e trasmette il payload al Nano. Il firmware del Nano è [sketch1_FlightController.ino](sketches/sketch1_FlightController.ino).
 
 | Funzione | Pin Uno |
 | :--- | :---: |
@@ -85,21 +85,20 @@ Il file [sketch_controller.ino](sketches/sketch_controller.ino) legge due joysti
 | Interruttore armamento | D4 verso GND |
 
 Mappatura predefinita:
+- joystick sinistro X: yaw
+- joystick sinistro Y: throttle
+- joystick destro X: roll
+- joystick destro Y: pitch
 
-- joystick sinistro X: yaw;
-- joystick sinistro Y: throttle;
-- joystick destro X: roll;
-- joystick destro Y: pitch.
-
-L'interruttore usa `INPUT_PULLUP`: per armare deve essere attivo e il throttle deve essere al minimo. Dopo l'armamento il throttle puo essere aumentato; disattivando l'interruttore il controller trasmette immediatamente `armed = 0`.
+L'interruttore usa `INPUT_PULLUP`: per armare deve essere attivo e il throttle deve essere al minimo. Dopo l'armamento il throttle può essere aumentato; disattivando l'interruttore il controller trasmette immediatamente `armed = 0`.
 
 ---
 
-## 🏗️ Hardware Assembly & 3D Printed Parts
+## 🏗️ Assemblaggio Hardware e Parti Stampate in 3D
 
-To ensure the sensors operate correctly, vibration isolation is critical. If you are fabricating custom FDM mounts or structural chassis components for the drone, they will be uploaded to the `hardware/stl/` directory. Currently, the flight controller stack requires:
-- Anti-vibration rubber standoffs for the Arduino/IMU mount.
-- A non-magnetic mast/spacer for the QMC5883L compass.
+Per garantire il corretto funzionamento dei sensori, l'isolamento dalle vibrazioni è critico. Se stai realizzando supporti FDM personalizzati o componenti strutturali del telaio per il drone, questi verranno caricati nella directory `hardware/stl/`. Attualmente, lo stack del flight controller richiede:
+- Distanziali in gomma antivibrazione per il supporto di Arduino/IMU.
+- Un albero/distanziale amagnetico per la bussola QMC5883L.
 
 ---
 
@@ -112,7 +111,7 @@ To ensure the sensors operate correctly, vibration isolation is critical. If you
 - Libreria RF24 disponibile nel percorso delle librerie.
 - Tutte le cartelle `libreries/Mio_*` aggiunte come librerie locali.
 
-La cartella `libreries` mantiene il nome storico del progetto; Arduino IDE puo richiedere di copiare o aggiungere manualmente le librerie nella cartella `libraries` dell'utente.
+La cartella `libreries` mantiene il nome storico del progetto; l'IDE di Arduino può richiedere di copiare o aggiungere manualmente le librerie nella cartella `libraries` dell'utente.
 
 ### Caricamento
 
@@ -122,7 +121,7 @@ La cartella `libreries` mantiene il nome storico del progetto; Arduino IDE puo r
 4. Aprire il Monitor Seriale a 115200 baud.
 5. Verificare che IMU e RF24 risultino `OK` sul Nano.
 
-Il Nano calibra il giroscopio durante il `setup()`: deve rimanere immobile per circa un secondo.
+Il Nano calibra il giroscopio durante il `setup()`: il drone deve rimanere immobile per circa un secondo all'avvio.
 
 ### Protocollo radio
 
@@ -137,62 +136,3 @@ struct RcCommand {
     uint8_t armed;
     uint8_t reserved;
 };
-```
-
-Configurazione condivisa:
-
-- indirizzo: `DRONE`;
-- canale: `108`;
-- data rate: `RF24_250KBPS`;
-- payload: 10 byte;
-- controller: trasmettitore;
-- Nano: ricevitore;
-- timeout failsafe del Nano: 250 ms.
-
-### Test obbligatori prima del volo
-
-- alimentare il modulo nRF24 a 3,3 V stabile, con condensatore vicino al modulo;
-- verificare il riconoscimento dell'MPU6050;
-- verificare che ogni motore corrisponda al numero e alla posizione previsti;
-- verificare il verso degli assi e dei correttivi con eliche rimosse;
-- scollegare il controller e verificare che dopo 250 ms i motori vadano a 1000 µs;
-- verificare armamento e disarmo con throttle basso;
-- tarare i PID gradualmente, prima con il drone fissato e poi con prove brevi.
-
-Non eseguire prove con eliche montate finche ordine motori, versi, failsafe e disarmo non sono stati verificati separatamente.
-
-### Repository RF24
-
-`libreries/RF24` e una dipendenza inclusa nel repository e dispone della propria documentazione e dei propri esempi. Le modifiche al driver RF24 devono essere trattate separatamente dal firmware del drone.
-
-## Struttura del repository
-
-- `sketches/sketch1_FlightController.ino`: firmware del Nano.
-- `sketches/sketch_controller.ino`: radiocomando per Uno.
-- `libreries/Mio_MPU6050`: accelerometro e giroscopio.
-- `libreries/Mio_BMP280`: pressione e altitudine, non ancora nel controllo.
-- `libreries/Mio_QMC5883L`: magnetometro, non ancora nel controllo.
-- `libreries/Mio_Motore`: interfaccia ESC tramite `Servo`.
-- `libreries/RF24`: driver nRF24L01+ e materiale upstream.
-- `docs/wiki`: documentazione tecnica del progetto.
-
-## Limiti attuali e prossimi miglioramenti
-
-- aggiungere isteresi e una macchina di armamento piu robusta;
-- salvare calibrazioni in EEPROM;
-- verificare e correggere l'identificazione del QMC5883L per i moduli che non restituiscono il valore atteso `0xFF`;
-- aggiungere controllo tensione batteria;
-- completare heading con QMC5883L e quota con BMP280;
-- aggiungere un progetto PlatformIO per rendere riproducibile la compilazione;
-- validare memoria SRAM e tempo di esecuzione sul Nano reale;
-- aggiungere test del mixer e del protocollo su host.
-
-## Comandi utili
-
-Per controlli locali senza tool Arduino installati:
-
-```bash
-git diff --check
-```
-
-La compilazione finale deve essere eseguita con Arduino IDE o PlatformIO, usando il core AVR e le librerie installate.
