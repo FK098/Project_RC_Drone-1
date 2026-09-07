@@ -37,7 +37,9 @@ bool MioBMP280::begin(bool initWire) {
     }
 
     // Soft reset
-    writeRegister(BMP_REG_RESET, BMP_RESET_CMD);
+    if (!writeRegister(BMP_REG_RESET, BMP_RESET_CMD)) {
+        return false;
+    }
     delay(100);
 
     // Leggi i coefficienti di calibrazione
@@ -48,11 +50,15 @@ bool MioBMP280::begin(bool initWire) {
     // Configura:
     // ctrl_meas: oversampling temp x1, oversampling press x4, Normal mode
     // 001 011 11 = 0x2F -> Tempo di conversione di circa 14ms (70 Hz)
-    writeRegister(BMP_REG_CTRL_MEAS, 0x2F);
+    if (!writeRegister(BMP_REG_CTRL_MEAS, 0x2F)) {
+        return false;
+    }
 
     // config: standby 0.5ms, filtro IIR x4, SPI off
     // 000 010 00 = 0x08 -> Risposta molto più rapida (circa 50-60ms di latenza)
-    writeRegister(BMP_REG_CONFIG, 0x08);
+    if (!writeRegister(BMP_REG_CONFIG, 0x08)) {
+        return false;
+    }
 
     delay(50);
 

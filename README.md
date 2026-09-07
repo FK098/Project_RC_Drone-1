@@ -39,7 +39,7 @@ La maggior parte dei flight controller commerciali si affida a librerie ad alto 
 - **Collegamento Radio a 2.4 GHz (`nRF24L01+`):** Collegamento radio unidirezionale controller -> flight controller con payload binario fisso e timeout failsafe.
 - **Gestione Motori & ESC:** Segnale da 1000 a 2000 µs e disarmo iniziale; l'armamento viene richiesto dal controller e gestito dal flight controller.
 - **Sensori opzionali:** BMP280 e QMC5883L vengono inizializzati, ma non sono ancora usati nel loop PID a 250 Hz.
-
+- Mantenere fermi gli assi roll/pitch/yaw durante la calibrazione iniziale del controller.
 ---
 
 ## 📐 Pinout e Schema di Collegamento

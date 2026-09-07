@@ -47,6 +47,7 @@ MioMotore motor4;
 RcCommand command = {};
 uint32_t lastRadioPacketMs = 0;
 uint32_t nextControlUs = 0;
+uint32_t lastControlUs = 0;
 bool radioReady = false;
 bool imuReady = false;
 bool barometerReady = false;
@@ -92,17 +93,18 @@ float updatePid(Pid &pid, float setpoint, float measurement, float dt) {
     return clampFloat(output, -pid.outputLimit, pid.outputLimit);
 }
 
-void resetPid(Pid &pid) {
+void resetPid(Pid &pid, float measurement = 0.0f) {
     pid.integral = 0.0f;
-    pid.previousMeasurement = 0.0f;
+    pid.previousMeasurement = measurement;
 }
 
-void resetControllers() {
-    resetPid(angleRoll);
-    resetPid(anglePitch);
-    resetPid(rateRoll);
-    resetPid(ratePitch);
-    resetPid(rateYaw);
+void resetControllers(float rollMeasurement = 0.0f, float pitchMeasurement = 0.0f,
+                     float rollRate = 0.0f, float pitchRate = 0.0f, float yawRate = 0.0f) {
+    resetPid(angleRoll, rollMeasurement);
+    resetPid(anglePitch, pitchMeasurement);
+    resetPid(rateRoll, rollRate);
+    resetPid(ratePitch, pitchRate);
+    resetPid(rateYaw, yawRate);
 }
 
 void stopMotors() {
@@ -131,7 +133,7 @@ void updateRadio() {
     }
 }
 
-bool readImu(float &gxDps, float &gyDps, float &gzDps) {
+bool readImu(float &gxDps, float &gyDps, float &gzDps, float dt) {
     float axG, ayG, azG, temperatureC;
     if (!imu.readScaled(axG, ayG, azG, temperatureC, gxDps, gyDps, gzDps)) {
         return false;
@@ -139,7 +141,6 @@ bool readImu(float &gxDps, float &gyDps, float &gzDps) {
 
     const float measuredRoll = atan2(ayG, azG) * RAD_TO_DEG;
     const float measuredPitch = atan2(-axG, sqrt(ayG * ayG + azG * azG)) * RAD_TO_DEG;
-    const float dt = CONTROL_PERIOD_US / 1000000.0f;
     const float alpha = 0.98f;
 
     rollDeg = alpha * (rollDeg + gxDps * dt) + (1.0f - alpha) * measuredRoll;
@@ -160,9 +161,9 @@ void writeMotorMix(float throttle, float rollCorrection, float pitchCorrection, 
     motor4.setRawPWM(constrain(motor4Us, MIN_MOTOR_US, MAX_MOTOR_US));
 }
 
-void controlStep() {
+void controlStep(float dt) {
     float gxDps, gyDps, gzDps;
-    if (!imuReady || !readImu(gxDps, gyDps, gzDps)) {
+    if (!imuReady || !readImu(gxDps, gyDps, gzDps, dt)) {
         flightArmed = false;
         resetControllers();
         stopMotors();
@@ -174,12 +175,11 @@ void controlStep() {
     flightArmed = command.armed != 0 && !radioTimedOut;
 
     if (!flightArmed) {
-        resetControllers();
+        resetControllers(rollDeg, pitchDeg, gxDps, gyDps, gzDps);
         stopMotors();
         return;
     }
 
-    const float dt = CONTROL_PERIOD_US / 1000000.0f;
     const float desiredRollDeg = command.rollAngleCdeg / 100.0f;
     const float desiredPitchDeg = command.pitchAngleCdeg / 100.0f;
     const float desiredRollRate = updatePid(angleRoll, desiredRollDeg, rollDeg, dt);
@@ -191,7 +191,7 @@ void controlStep() {
     const float yawCorrection = updatePid(rateYaw, desiredYawRate, gzDps, dt);
 
     if (throttleLow) {
-        resetControllers();
+        resetControllers(rollDeg, pitchDeg, gxDps, gyDps, gzDps);
         stopMotors();
         return;
     }
@@ -235,7 +235,8 @@ void setup() {
 
     command.throttleUs = MIN_MOTOR_US;
     lastRadioPacketMs = millis();
-    nextControlUs = micros() + CONTROL_PERIOD_US;
+    lastControlUs = micros();
+    nextControlUs = lastControlUs + CONTROL_PERIOD_US;
 
     Serial.println(F("RC drone controller ready; motors disarmed"));
     Serial.print(F("IMU: ")); Serial.println(imuReady ? F("OK") : F("FAIL"));
@@ -254,6 +255,10 @@ void loop() {
     if ((uint32_t)(nowUs - nextControlUs) > CONTROL_PERIOD_US * 4UL) {
         nextControlUs = nowUs;
     }
+    const float dt = clampFloat((nowUs - lastControlUs) / 1000000.0f,
+                                CONTROL_PERIOD_US / 1000000.0f,
+                                0.02f);
+    lastControlUs = nowUs;
     nextControlUs += CONTROL_PERIOD_US;
-    controlStep();
+    controlStep(dt);
 }

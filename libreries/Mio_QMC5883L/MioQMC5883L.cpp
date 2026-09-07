@@ -152,9 +152,9 @@ bool MioQMC5883L::calibrate(uint32_t durationMs) {
     }
 
     // Calcola offset raw
-    _offsetRawX = (minX + maxX) / 2;
-    _offsetRawY = (minY + maxY) / 2;
-    _offsetRawZ = (minZ + maxZ) / 2;
+    _offsetRawX = (int16_t)(((int32_t)minX + (int32_t)maxX) / 2);
+    _offsetRawY = (int16_t)(((int32_t)minY + (int32_t)maxY) / 2);
+    _offsetRawZ = (int16_t)(((int32_t)minZ + (int32_t)maxZ) / 2);
 
     // Calcola offset in Gauss
     float scale = getScale();
