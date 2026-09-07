@@ -1,0 +1,15 @@
+MioMPU6050	KEYWORD1
+begin	KEYWORD2
+reset	KEYWORD2
+wake	KEYWORD2
+checkWhoAmI	KEYWORD2
+setDLPF	KEYWORD2
+setSampleRateDivider	KEYWORD2
+setGyroRange	KEYWORD2
+setAccelRange	KEYWORD2
+readRaw	KEYWORD2
+readScaled	KEYWORD2
+getAccelSensitivityG	KEYWORD2
+getGyroSensitivityDPS	KEYWORD2
+writeRegister	KEYWORD2
+readRegisters	KEYWORD2
