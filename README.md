@@ -1,6 +1,6 @@
-# 🛸 Arduino Nano Flight Controller — A From-Scratch Drone Firmware
+# Arduino Nano RC Drone Flight Controller
 
-> A deterministic quadcopter Flight Controller built from scratch on an 8-bit AVR architecture (**Arduino Nano / ATmega328P**), featuring custom low-level drivers for sensors, sensor fusion algorithms, and 2.4 GHz radio telemetry.
+> Flight controller per quadricottero X basato su Arduino Nano / ATmega328P, con driver I2C/SPI custom, controllo PID e radiocomando Arduino Uno.
 
 ![Status](https://img.shields.io/badge/status-in_development-yellow)
 ![License](https://img.shields.io/badge/license-MIT-blue)
@@ -8,11 +8,15 @@
 
 ---
 
-## 👨‍💻 About Me
+## Stato del progetto
 
-I'm a **Computer Engineering undergraduate at Politecnico di Milano**, passionate about embedded systems, firmware development, robotics, and low-level hardware/software architectures.
+Il progetto e in sviluppo. Il firmware e stato strutturato e controllato staticamente, ma non e stato ancora validato in volo. Ogni prova iniziale deve essere eseguita senza eliche e con il drone fissato.
 
-This repository documents the **complete design and implementation of a drone's onboard firmware**: from reading raw sensor registers via I2C/SPI, to writing mathematical filters and sensor fusion, up to real-time stabilization using cascaded PID control loops — all without relying on pre-built flight controller libraries.
+Documentazione dettagliata: [wiki locale](docs/wiki/README.md).
+
+## Obiettivo tecnico
+
+Il repository documenta il firmware del drone: lettura dei registri dei sensori, filtro complementare, controllo PID cascato e mixer dei quattro motori. Le librerie `Mio*` sono scritte per questo progetto; RF24 e una libreria esterna inclusa nel repository.
 
 - **GitHub:** [@FK098](https://github.com/FK098)
 
@@ -30,11 +34,11 @@ Most commercial flight controllers rely on high-level libraries or pre-compiled 
 
 - **Deterministic Flight Loop @ 250 Hz:** Fixed-cycle 4 ms scheduling ensures stable convergence of cascaded PID loops (Roll, Pitch, Yaw rate).
 - **Custom Sensor Libraries (`Mio*`):** Bare-metal I2C drivers written from datasheets for the MPU-6050, BMP280, and QMC5883L, with register-level control, DLPF filtering, and factory calibration parsing.
-- **Sensor Fusion:** Complementary filter for attitude estimation (gyro integration + accelerometer gravity reference) and tilt-compensated magnetometer heading.
+- **Sensor Fusion:** Filtro complementare attivo per roll/pitch; heading tilt-compensato con QMC5883L disponibile nella libreria ma non ancora integrato nel loop di volo.
 - **Cascaded PID Architecture:** Outer angle loop → inner rate loop → motor mixer, with integral windup protection and derivative-on-measurement to avoid setpoint kicks.
-- **2.4 GHz Radio Link (`nRF24L01+`):** Bidirectional SPI communication using a custom binary `struct`-based packet protocol with CRC and failsafe timeout.
-- **ESC & Motor Management:** Standard PWM (1000–2000 µs), armed/disarmed state machine, software deadband, and automatic throttle-range calibration routines.
-- **Hard/Soft Iron Magnetometer Calibration:** In-flight 3D rotation routine to compute bias offsets for reliable heading hold.
+- **2.4 GHz Radio Link (`nRF24L01+`):** Collegamento radio unidirezionale controller -> flight controller con payload binario fisso e timeout failsafe.
+- **ESC & Motor Management:** Segnale da 1000 a 2000 µs e disarmo iniziale; l'armamento viene richiesto dal controller e controllato dal flight controller.
+- **Sensori opzionali:** BMP280 e QMC5883L vengono inizializzati, ma non sono ancora usati nel loop PID a 250 Hz.
 
 ------
 
@@ -67,6 +71,28 @@ All I2C devices share the same bus. The MPU-6050 and BMP280 are standard, while 
 | **Motor 3** | D6 | Rear Left (CCW) |
 | **Motor 4** | D9 | Front Left (CW) |
 
+### Ground controller (Arduino Uno)
+
+Il file [sketch_controller.ino](sketches/sketch_controller.ino) legge due joystick analogici e trasmette il payload al Nano. Il firmware del Nano e [sketch1_FlightController.ino](sketches/sketch1_FlightController.ino).
+
+| Funzione | Pin Uno |
+| :--- | :---: |
+| RF24 CE | D7 |
+| RF24 CSN | D8 |
+| RF24 MOSI / MISO / SCK | D11 / D12 / D13 |
+| Joystick sinistro X / Y | A0 / A1 |
+| Joystick destro X / Y | A2 / A3 |
+| Interruttore armamento | D4 verso GND |
+
+Mappatura predefinita:
+
+- joystick sinistro X: yaw;
+- joystick sinistro Y: throttle;
+- joystick destro X: roll;
+- joystick destro Y: pitch.
+
+L'interruttore usa `INPUT_PULLUP`: per armare deve essere attivo e il throttle deve essere al minimo. Dopo l'armamento il throttle puo essere aumentato; disattivando l'interruttore il controller trasmette immediatamente `armed = 0`.
+
 ---
 
 ## 🏗️ Hardware Assembly & 3D Printed Parts
@@ -77,13 +103,96 @@ To ensure the sensors operate correctly, vibration isolation is critical. If you
 
 ---
 
-## 🚀 Getting Started
+## Installazione e primo avvio
 
-### Prerequisites
-- Arduino IDE (v2.x) or VS Code + PlatformIO.
-- AVR Board Package installed.
+### Prerequisiti
 
-### Installation & Calibration
-1. **Clone the repo:**
-   ```bash
-   git clone [https://github.com/FK098/arduino-flight-controller.git](https://github.com/FK098/arduino-flight-controller.git)
+- Arduino IDE 2.x oppure PlatformIO.
+- Core Arduino per Arduino Nano e Arduino Uno.
+- Libreria RF24 disponibile nel percorso delle librerie.
+- Tutte le cartelle `libreries/Mio_*` aggiunte come librerie locali.
+
+La cartella `libreries` mantiene il nome storico del progetto; Arduino IDE puo richiedere di copiare o aggiungere manualmente le librerie nella cartella `libraries` dell'utente.
+
+### Caricamento
+
+1. Selezionare **Arduino Nano** per `sketch1_FlightController.ino` e **Arduino Uno** per `sketch_controller.ino`.
+2. Selezionare la porta seriale corretta e il processore Nano corretto (`ATmega328P` oppure `ATmega328P Old Bootloader` se necessario).
+3. Caricare prima il controller e poi il flight controller.
+4. Aprire il Monitor Seriale a 115200 baud.
+5. Verificare che IMU e RF24 risultino `OK` sul Nano.
+
+Il Nano calibra il giroscopio durante il `setup()`: deve rimanere immobile per circa un secondo.
+
+### Protocollo radio
+
+Entrambi gli sketch devono mantenere questa struttura, senza modificare ordine o tipi:
+
+```cpp
+struct RcCommand {
+    int16_t rollAngleCdeg;
+    int16_t pitchAngleCdeg;
+    int16_t yawRateCdeg;
+    uint16_t throttleUs;
+    uint8_t armed;
+    uint8_t reserved;
+};
+```
+
+Configurazione condivisa:
+
+- indirizzo: `DRONE`;
+- canale: `108`;
+- data rate: `RF24_250KBPS`;
+- payload: 10 byte;
+- controller: trasmettitore;
+- Nano: ricevitore;
+- timeout failsafe del Nano: 250 ms.
+
+### Test obbligatori prima del volo
+
+- alimentare il modulo nRF24 a 3,3 V stabile, con condensatore vicino al modulo;
+- verificare il riconoscimento dell'MPU6050;
+- verificare che ogni motore corrisponda al numero e alla posizione previsti;
+- verificare il verso degli assi e dei correttivi con eliche rimosse;
+- scollegare il controller e verificare che dopo 250 ms i motori vadano a 1000 µs;
+- verificare armamento e disarmo con throttle basso;
+- tarare i PID gradualmente, prima con il drone fissato e poi con prove brevi.
+
+Non eseguire prove con eliche montate finche ordine motori, versi, failsafe e disarmo non sono stati verificati separatamente.
+
+### Repository RF24
+
+`libreries/RF24` e una dipendenza inclusa nel repository e dispone della propria documentazione e dei propri esempi. Le modifiche al driver RF24 devono essere trattate separatamente dal firmware del drone.
+
+## Struttura del repository
+
+- `sketches/sketch1_FlightController.ino`: firmware del Nano.
+- `sketches/sketch_controller.ino`: radiocomando per Uno.
+- `libreries/Mio_MPU6050`: accelerometro e giroscopio.
+- `libreries/Mio_BMP280`: pressione e altitudine, non ancora nel controllo.
+- `libreries/Mio_QMC5883L`: magnetometro, non ancora nel controllo.
+- `libreries/Mio_Motore`: interfaccia ESC tramite `Servo`.
+- `libreries/RF24`: driver nRF24L01+ e materiale upstream.
+- `docs/wiki`: documentazione tecnica del progetto.
+
+## Limiti attuali e prossimi miglioramenti
+
+- aggiungere isteresi e una macchina di armamento piu robusta;
+- salvare calibrazioni in EEPROM;
+- verificare e correggere l'identificazione del QMC5883L per i moduli che non restituiscono il valore atteso `0xFF`;
+- aggiungere controllo tensione batteria;
+- completare heading con QMC5883L e quota con BMP280;
+- aggiungere un progetto PlatformIO per rendere riproducibile la compilazione;
+- validare memoria SRAM e tempo di esecuzione sul Nano reale;
+- aggiungere test del mixer e del protocollo su host.
+
+## Comandi utili
+
+Per controlli locali senza tool Arduino installati:
+
+```bash
+git diff --check
+```
+
+La compilazione finale deve essere eseguita con Arduino IDE o PlatformIO, usando il core AVR e le librerie installate.
